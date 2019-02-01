@@ -63,7 +63,8 @@ public:
 	virtual bool Open(const FString& Url, const IMediaOptions* Options) override;
 	virtual bool Open(const TSharedRef<FArchive, ESPMode::ThreadSafe>& Archive, const FString& OriginalUrl, const IMediaOptions* Options) override;
 	virtual void TickInput(FTimespan DeltaTime, FTimespan Timecode) override;
-
+	// Custom 2D texture update 
+	void SetTextureUpdateTarget(UTexture2D *tex);
 protected:
 
 	/**

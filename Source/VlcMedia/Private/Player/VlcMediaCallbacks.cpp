@@ -11,7 +11,7 @@
 #include "Vlc.h"
 #include "VlcMediaAudioSample.h"
 #include "VlcMediaTextureSample.h"
-
+#include <Engine/Texture2D.h>
 
 /* FVlcMediaOutput structors
  *****************************************************************************/
@@ -32,6 +32,8 @@ FVlcMediaCallbacks::FVlcMediaCallbacks()
 	, VideoPreviousTime(FTimespan::MinValue())
 	, VideoSampleFormat(EMediaTextureSampleFormat::CharAYUV)
 	, VideoSamplePool(new FVlcMediaTextureSamplePool)
+	, VideoTexture2D( nullptr )
+
 { }
 
 
@@ -58,6 +60,62 @@ IMediaSamples& FVlcMediaCallbacks::GetSamples()
 	return *Samples;
 }
 
+
+void UpdateTextureRegions(UTexture2D* Texture, int32 MipIndex, uint32 NumRegions, FUpdateTextureRegion2D* Regions, uint32 SrcPitch, uint32 SrcBpp, uint8* SrcData, bool bFreeData)
+{
+	if (Texture->Resource)
+	{
+		struct FUpdateTextureRegionsData
+		{
+			FTexture2DResource* Texture2DResource;
+			int32 MipIndex;
+			uint32 NumRegions;
+			FUpdateTextureRegion2D* Regions;
+			uint32 SrcPitch;
+			uint32 SrcBpp;
+			uint8* SrcData;
+		};
+
+		FUpdateTextureRegionsData* RegionData = new FUpdateTextureRegionsData;
+
+		RegionData->Texture2DResource = (FTexture2DResource*)Texture->Resource;
+		RegionData->MipIndex = MipIndex;
+		RegionData->NumRegions = NumRegions;
+		RegionData->Regions = Regions;
+		RegionData->SrcPitch = SrcPitch;
+		RegionData->SrcBpp = SrcBpp;
+		RegionData->SrcData = SrcData;
+
+		ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+			UpdateTextureRegionsData,
+			FUpdateTextureRegionsData*, RegionData, RegionData,
+			bool, bFreeData, bFreeData,
+			{
+			for (uint32 RegionIndex = 0; RegionIndex < RegionData->NumRegions; ++RegionIndex)
+			{
+				int32 CurrentFirstMip = RegionData->Texture2DResource->GetCurrentFirstMip();
+				if (RegionData->MipIndex >= CurrentFirstMip)
+				{
+					RHIUpdateTexture2D(
+						RegionData->Texture2DResource->GetTexture2DRHI(),
+						RegionData->MipIndex - CurrentFirstMip,
+						RegionData->Regions[RegionIndex],
+						RegionData->SrcPitch,
+						RegionData->SrcData
+						+ RegionData->Regions[RegionIndex].SrcY * RegionData->SrcPitch
+						+ RegionData->Regions[RegionIndex].SrcX * RegionData->SrcBpp
+						);
+				}
+			}
+			if (bFreeData)
+			{
+				FMemory::Free(RegionData->Regions);
+				FMemory::Free(RegionData->SrcData);
+			}
+			delete RegionData;
+		});
+	}
+}
 
 void FVlcMediaCallbacks::Initialize(FLibvlcMediaPlayer& InPlayer)
 {
@@ -274,19 +332,41 @@ void FVlcMediaCallbacks::StaticVideoDisplayCallback(void* Opaque, void* Picture)
 {
 	auto Callbacks = (FVlcMediaCallbacks*)Opaque;
 	auto VideoSample = (FVlcMediaTextureSample*)Picture;
-
+	
 	if ((Callbacks == nullptr) || (VideoSample == nullptr))
 	{
 		return;
 	}
-
+	
 	UE_LOG(LogVlcMedia, VeryVerbose, TEXT("Callbacks %llx: StaticVideoDisplayCallback (CurrentTime = %s, Queue = %i)"),
 		Opaque, *Callbacks->CurrentTime.ToString(),
 		Callbacks->Samples->NumVideoSamples()
 	);
 
 	VideoSample->SetTime(Callbacks->CurrentTime);
-
+	UE_LOG(LogTemp, Warning, TEXT("Got sample right here."));
+	uint8 * buffer = (uint8 *)VideoSample->GetBuffer();
+	EMediaTextureSampleFormat format = VideoSample->GetFormat();
+	FIntPoint dimensions = VideoSample->GetDim();
+	UE_LOG(LogTemp, Log, TEXT("Format is%dx%d, %s"), dimensions.X, dimensions.Y, MediaTextureSampleFormat::EnumToString(format));
+	
+	if ( format == EMediaTextureSampleFormat::CharBGRA )
+	{
+		uint32 SrcPitch = 4*dimensions.X;
+		uint32 SrcBpp = 4;
+		if ( Callbacks->VideoTexture2D != nullptr )
+		{
+			UE_LOG(LogTemp, Log, TEXT("Updating video texture now...%d and %d" ),  buffer[3], buffer[4*dimensions.X/2+3] );
+			UpdateTextureRegions(Callbacks->VideoTexture2D, 0, 1, &Callbacks->UpdateRegion, SrcPitch, SrcBpp, buffer, false);
+		}
+		for(int i=0;i<dimensions.X;i++)
+		{
+			
+		}
+		
+		
+	}
+	
 	// add sample to queue
 	Callbacks->Samples->AddVideo(Callbacks->VideoSamplePool->ToShared(VideoSample));
 }

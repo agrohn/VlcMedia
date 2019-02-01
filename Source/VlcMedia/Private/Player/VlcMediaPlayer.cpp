@@ -532,3 +532,9 @@ void FVlcMediaPlayer::StaticEventCallback(FLibvlcEvent* Event, void* UserData)
 		((FVlcMediaPlayer*)UserData)->Events.Enqueue(Event->Type);
 	}
 }
+void FVlcMediaPlayer::SetTextureUpdateTarget(UTexture2D* tex)
+{
+	Callbacks.VideoTexture2D = tex;
+	Callbacks.UpdateRegion = FUpdateTextureRegion2D(0,0,0,0, tex->GetSizeX(), tex->GetSizeY());
+	
+}

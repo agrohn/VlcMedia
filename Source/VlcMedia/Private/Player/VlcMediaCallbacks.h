@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "IMediaAudioSample.h"
 #include "IMediaTextureSample.h"
-
+//#include "Texture2D.h"
 class FMediaSamples;
 class FVlcMediaAudioSamplePool;
 class FVlcMediaTextureSamplePool;
@@ -14,7 +14,7 @@ class IMediaAudioSink;
 class IMediaOverlaySink;
 class IMediaSamples;
 class IMediaTextureSink;
-
+class UTexture2D;
 struct FLibvlcMediaPlayer;
 
 
@@ -32,7 +32,7 @@ public:
 	~FVlcMediaCallbacks();
 
 public:
-
+	
 	/**
 	 * Get the output media samples.
 	 *
@@ -144,4 +144,7 @@ private:
 
 	/** Video sample object pool. */
 	FVlcMediaTextureSamplePool* VideoSamplePool;
+public:
+	UTexture2D *VideoTexture2D;
+	FUpdateTextureRegion2D UpdateRegion;
 };

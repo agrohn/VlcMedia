@@ -11,7 +11,7 @@ namespace UnrealBuildTool.Rules
 		public VlcMedia(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
+			
 			DynamicallyLoadedModuleNames.AddRange(
 				new string[] {
 					"Media",
@@ -25,6 +25,9 @@ namespace UnrealBuildTool.Rules
 					"Projects",
 					"RenderCore",
 					"VlcMediaFactory",
+					"RHI",
+					"Engine"
+					
 				});
 
 			PrivateIncludePathModuleNames.AddRange(
@@ -43,7 +46,13 @@ namespace UnrealBuildTool.Rules
 			// add VLC libraries
 			string BaseDirectory = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", ".."));
 			string VlcDirectory = Path.Combine(BaseDirectory, "ThirdParty", "vlc", Target.Platform.ToString());
-
+			PublicIncludePaths.AddRange(new string[]{
+					
+					Path.Combine(BaseDirectory, "Source/VlcMedia/Private"),
+					Path.Combine(BaseDirectory,"Source/VlcMedia/Private/Player"),
+					Path.Combine(BaseDirectory,"Source/VlcMedia/Private/Shared"),
+					Path.Combine(BaseDirectory,"Source/VlcMedia/Private/Vlc")
+			});
 			if (Target.Platform == UnrealTargetPlatform.Linux)
 			{
 				VlcDirectory = Path.Combine(VlcDirectory, Target.Architecture, "lib");
