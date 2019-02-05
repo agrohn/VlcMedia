@@ -345,7 +345,10 @@ void FVlcMediaCallbacks::StaticVideoDisplayCallback(void* Opaque, void* Picture)
 
 	VideoSample->SetTime(Callbacks->CurrentTime);
 	UE_LOG(LogTemp, Warning, TEXT("Got sample right here."));
-	uint8 * buffer = (uint8 *)VideoSample->GetBuffer();
+	uint8 * buffer = (uint8 *)VideoSample->GetMutableBuffer();
+	
+	
+	
 	EMediaTextureSampleFormat format = VideoSample->GetFormat();
 	FIntPoint dimensions = VideoSample->GetDim();
 	UE_LOG(LogTemp, Log, TEXT("Format is%dx%d, %s"), dimensions.X, dimensions.Y, MediaTextureSampleFormat::EnumToString(format));
@@ -354,17 +357,45 @@ void FVlcMediaCallbacks::StaticVideoDisplayCallback(void* Opaque, void* Picture)
 	{
 		uint32 SrcPitch = 4*dimensions.X;
 		uint32 SrcBpp = 4;
+		
+		
+		// Mangle data to stick with 
+		for(size_t i = 0;i<SrcBpp*dimensions.X*dimensions.Y;i+=SrcBpp)
+		{
+			
+			// In encoding, we have RGB channels in big endian order. 
+			// Blue channel holds depth information. RGB is reduced into 5-bit component representation,
+			// and stored in R and G bits. 
+			//      B        G        R           
+			//  00000000 00000000 00011111  R
+			//  00000000 00000011 11100000  G
+			//  00000000 01111100 00000000  B
+			//  11111111 00000000 00000000  A = depth 
+			
+			// But when in video, we get bits in BGRA order, meaning in big endian:
+            //      A        R       G        B        
+			//  00000000 00011111 00000000 00000000 R straight
+			//  00000000 11100000 00000011 00000000 G (needs more mangling)
+			//  00000000 00000000 01111100 00000000 B ( >> 10 )
+			//  00000000 00000000 00000000 11111111 
+	        // and not forgetting to ignore alpha channel 
+			uint32 pixel = *(uint32 *)&buffer[i];
+			
+			// alpha component (needs to be done first)
+			buffer[i+3] = buffer[i];
+			// Blue component
+			buffer[i]   = (pixel & 0x7C00) >> 7;
+			// Green 
+			buffer[i+1] = 0;//(pixel & 0x300) >> 2 | (pixel & 0xE00000) >> 18;
+			// Red 
+			buffer[i+2] = 0;//(pixel & 0x1F0000) >> 13;
+			
+		}
 		if ( Callbacks->VideoTexture2D != nullptr )
 		{
 			UE_LOG(LogTemp, Log, TEXT("Updating video texture now...%d and %d" ),  buffer[3], buffer[4*dimensions.X/2+3] );
 			UpdateTextureRegions(Callbacks->VideoTexture2D, 0, 1, &Callbacks->UpdateRegion, SrcPitch, SrcBpp, buffer, false);
 		}
-		for(int i=0;i<dimensions.X;i++)
-		{
-			
-		}
-		
-		
 	}
 	
 	// add sample to queue
